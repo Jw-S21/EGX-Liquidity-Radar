@@ -6,5 +6,4 @@ requests
 beautifulsoup4
 lxml
 pdfplumber
-feedparser
-google-generativeai
+streamlit-autorefresh
