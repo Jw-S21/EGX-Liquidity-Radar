@@ -1,4 +1,4 @@
-streamlit-autorefresh
+streamlit
 pandas
 matplotlib
 yfinance
@@ -6,4 +6,5 @@ requests
 beautifulsoup4
 lxml
 pdfplumber
-openai
+feedparser
+google-generativeai
