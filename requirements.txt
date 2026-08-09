@@ -8,3 +8,4 @@ lxml
 pdfplumber
 google-generativeai
 feedparser
+streamlit-autorefresh
