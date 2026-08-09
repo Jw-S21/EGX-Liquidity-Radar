@@ -452,3 +452,115 @@ st.caption("تم تطوير هذه البوصلة باستخدام بيانات 
 if __name__ == "__main__":
     # في Streamlit، يتم تشغيل الكود مباشرة، لا حاجة لـ main()
     pass
+import streamlit as st
+import pandas as pd
+import requests
+import pdfplumber
+import feedparser
+import google.generativeai as genai
+import os
+
+# --- إعدادات التطبيق ---
+st.set_page_config(page_title="تحليل الأسواق المصرية", layout="wide")
+
+# القائمة الجانبية للتنقل بين الصفحات
+st.sidebar.title("📊 قائمة التطبيق")
+page = st.sidebar.radio("اختر الصفحة", 
+                        ["🏠 الصفحة الرئيسية (السيولة)", "📄 تحليل ملفات PDF", "📰 الأخبار وتأثيرها على السوق"])
+
+# ------------------------------------------------
+# الصفحة الأولى: الصفحة الأصلية الخاصة بك
+# ------------------------------------------------
+if page == "🏠 الصفحة الرئيسية (السيولة)":
+    st.title("البورصة المصرية - تحليل السيولة")
+    # هنا ضع كود الصفحة الرئيسية الأصلي الخاص بك بالكامل (أضفه هنا)
+
+# ------------------------------------------------
+# الصفحة الثانية: تحليل ملفات PDF (باستخدام Gemini المجاني)
+# ------------------------------------------------
+elif page == "📄 تحليل ملفات PDF":
+    st.title("📂 تحليل وشرح ملفات PDF")
+
+    # الحصول على مفتاح Gemini المجاني من الرابط الموجود في النص أدناه
+    st.info("لتحليل الملفات، أحتاج لمفتاح API من Google Gemini (مجاني). اشترك في Google AI Studio (https://aistudio.google.com/app/apikey) وانشئ مفتاح، وضعه هنا (لن يخزّن).")
+    user_api_key = st.text_input("أدخل مفتاح API الخاص بـ Gemini:", type="password")
+
+    uploaded_file = st.file_uploader("ارفع ملف PDF", type=["pdf"])
+
+    if uploaded_file is not None and user_api_key:
+        with st.spinner("جاري استخراج النص من الملف..."):
+            try:
+                # استخراج النص من PDF
+                text_content = ""
+                with pdfplumber.open(uploaded_file) as pdf:
+                    for page in pdf.pages:
+                        text_content += page.extract_text() or ""
+                
+                if not text_content.strip():
+                    st.error("الملف عبارة عن صور (سكانر) ولا يحتوي على نصوص قابلة للتحليل.")
+                else:
+                    st.success("تم استخراج النص بنجاح!")
+                    with st.expander("إظهار النص المستخرج"):
+                        st.write(text_content[:1000] + "..." if len(text_content) > 1000 else text_content)
+
+                    if st.button("🚀 تحليل الملف وإعطاء الرأي"):
+                        with st.spinner("جاري التحليل بواسطة الذكاء الاصطناعي (Gemini)..."):
+                            try:
+                                genai.configure(api_key=user_api_key)
+                                model = genai.GenerativeModel('gemini-1.5-flash')
+                                prompt = f"أنت خبير مالي واقتصادي في أسواق المال. قم بتحليل النص التالي، وأعطني ملخصاً له، وشرحاً لمحتواه، ورأيك التحليلي الشخصي (توصية) بناءً على المعلومات الموجودة فيه. يرجى الرد باللغة العربية. النص: {text_content}"
+                                response = model.generate_content(prompt)
+                                st.markdown("### 📊 نتيجة التحليل والرأي:")
+                                st.write(response.text)
+                            except Exception as e:
+                                st.error(f"حدث خطأ: {e}. تأكد من أن المفتاح صحيح.")
+            except Exception as e:
+                st.error(f"خطأ في قراءة الملف: {e}")
+
+# ------------------------------------------------
+# الصفحة الثالثة: الأخبار (باستخدام Google News RSS مجاني)
+# ------------------------------------------------
+elif page == "📰 الأخبار وتأثيرها على السوق":
+    st.title("📰 تأثير الأخبار على اتجاهات السوق")
+    st.success("يتم جلب الأخبار مباشرة من خدمة Google News RSS (مجانية تماماً وبدون مفتاح).")
+    
+    keyword = st.text_input("ابحث عن موضوع معين:", value="البورصة المصرية")
+    
+    if st.button("🔄 جلب الأخبار وتحليل تأثيرها"):
+        with st.spinner("جاري جلب الأخبار..."):
+            try:
+                # استخدام RSS الخاص بـ Google News للبحث بالعربية
+                rss_url = f"https://news.google.com/rss/search?q={keyword}&hl=ar&gl=EG&ceid=EG:ar"
+                feed = feedparser.parse(rss_url)
+                
+                if not feed.entries:
+                    st.warning("لم يتم العثور على أخبار حالية لهذا الموضوع.")
+                else:
+                    st.subheader(f"آخر 5 أخبار من Google News:")
+                    news_text = ""
+                    for i, entry in enumerate(feed.entries[:5]):
+                        st.write(f"**{i+1}. {entry.title}**")
+                        st.write(f"المصدر: {entry.source.title if hasattr(entry, 'source') else 'مصدر غير معروف'} | التاريخ: {entry.published[:10] if hasattr(entry, 'published') else 'تاريخ غير معروف'}")
+                        st.write(f"ملخص: {entry.summary.replace('<font color=\"#6f6f6f\">', '').replace('</font>', '')}")
+                        st.markdown("---")
+                        
+                        # تجميع النصوص للتحليل
+                        news_text += f"عنوان الخبر: {entry.title}\nالملخص: {entry.summary}\n\n"
+                    
+                    st.divider()
+                    st.write("### 🤖 رؤية الذكاء الاصطناعي لتأثير هذه الأخبار:")
+                    
+                    # هنا يحتاج مفتاح Gemini أيضاً إن كنت تريد تحليل تأثير الأخبار
+                    user_api_key = st.text_input("أدخل مفتاح Gemini هنا لتحليل التوصية:", type="password", key="news_key")
+                    if user_api_key:
+                        with st.spinner("جاري التحليل..."):
+                            try:
+                                genai.configure(api_key=user_api_key)
+                                model = genai.GenerativeModel('gemini-1.5-flash')
+                                prompt = f"أنت محلل مالي خبير. بناءً على مجموعة الأخبار المالية التالية، قم بتحليل المشاعر العامة (Sentiment) للسوق (صاعد أم هابط أم محايد)، واشرح لماذا، واعط نصيحة للمستثمرين بناءً على هذه الأخبار. الرد باللغة العربية. الأخبار: {news_text}"
+                                response = model.generate_content(prompt)
+                                st.success(response.text)
+                            except:
+                                st.warning("حدث خطأ، ربما المفتاح غير صحيح أو انتهى الرصيد المجاني.")
+            except Exception as e:
+                st.error(f"حدث خطأ أثناء جلب الأخبار: {e}")
